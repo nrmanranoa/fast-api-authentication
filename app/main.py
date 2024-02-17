@@ -1,17 +1,16 @@
-from fastapi import FastAPI
-from . import models
-from .database import engine
-from fastapi import Depends, status, HTTPException
+from fastapi import FastAPI, Depends, status, Request, HTTPException
 from fastapi.security.oauth2 import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from .database import get_db
-from . import database, utils, oauth2, schemas
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from . import models, utils, oauth2, schemas
+from .database import get_db
 
 app = FastAPI()
 
+# Configure CORS
 origins = ["*"]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -20,33 +19,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/login")
-def log_in(user_credentials: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
+# Constants for error messages
+INVALID_EMAIL_MESSAGE = "The email address is not valid. It must have exactly one @-sign."
+INVALID_CREDENTIALS_MESSAGE = "Invalid credentials."
+EMAIL_ALREADY_REGISTERED_MESSAGE = "Email already registered."
 
-    user = db.query(models.User).filter(
-        models.User.email == user_credentials.username).first()
+# Exception handler for validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    error_response = {"detail": f"value is not a valid email address: {INVALID_EMAIL_MESSAGE}"}
+    return JSONResponse(content=error_response, status_code=400)
 
-    if not user:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, 
-                                detail="Invalid credentials.")
-    
-    if not utils.verify(user_credentials.password, user.password):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, 
-                                detail="Invalid credentials.") 
-    
-    access_token = oauth2.create_access_token(data = {"user_id": user.id})
+# Login route
+@app.post("/login", response_model=dict)
+def log_in(user_credentials: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == user_credentials.username).first()
 
+    if not user or not utils.verify(user_credentials.password, user.password):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=INVALID_CREDENTIALS_MESSAGE)
+
+    access_token = oauth2.create_access_token(data={"user_id": user.id})
     return {"access_token": access_token, "token_type": "bearer"}
 
+# User creation route
 @app.post("/users", status_code=status.HTTP_201_CREATED, response_model=schemas.UserOut)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-
-    # Check if the user with the same email already exists
     existing_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
 
-    #hash the password
+    if existing_user:
+        raise HTTPException(status_code=400, detail=EMAIL_ALREADY_REGISTERED_MESSAGE)
+
     hashed_password = utils.hash(user.password)
     user.password = hashed_password
 
