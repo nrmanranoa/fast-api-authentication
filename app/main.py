@@ -21,7 +21,6 @@ app.add_middleware(
 )
 
 # Constants for error messages
-INVALID_EMAIL_MESSAGE = "The email address is not valid. It must have exactly one @-sign."
 INVALID_CREDENTIALS_MESSAGE = "Invalid credentials."
 EMAIL_ALREADY_REGISTERED_MESSAGE = "Email already registered."
 EMAIL_AND_PASSWORD_REQUIRED = "Both email and password are required."
@@ -34,7 +33,7 @@ PASSWORD_REGEX = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).*$")
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    error_response = {"detail": f"value is not a valid email address: {INVALID_EMAIL_MESSAGE}"}
+    error_response = {"detail": f"{EMAIL_AND_PASSWORD_REQUIRED} Also ensure that email has exactly one @-sign."}
     return JSONResponse(content=error_response, status_code=422)
 
 # Login route
@@ -43,7 +42,9 @@ def log_in(user_credentials: OAuth2PasswordRequestForm = Depends(), db: Session 
     user = db.query(models.User).filter(models.func.lower(models.User.email) == user_credentials.username.lower()).first()
 
     if not user or not utils.verify(user_credentials.password, user.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=INVALID_CREDENTIALS_MESSAGE)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=INVALID_CREDENTIALS_MESSAGE)
 
     access_token = oauth2.create_access_token(data={"user_id": user.id})
     return {"access_token": access_token, "token_type": "bearer"}
@@ -57,14 +58,20 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(models.User).filter(models.func.lower(models.User.email) == user_email_lower).first()
 
     if existing_user:
-        raise HTTPException(status_code=409, detail=EMAIL_ALREADY_REGISTERED_MESSAGE)
+        raise HTTPException(
+            status_code=409,
+            detail=EMAIL_ALREADY_REGISTERED_MESSAGE)
 
     if not user.email or not user.password:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=EMAIL_AND_PASSWORD_REQUIRED)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=EMAIL_AND_PASSWORD_REQUIRED)
 
     # Validate password against policy
     if len(user.password) < PASSWORD_MIN_LENGTH or not PASSWORD_REGEX.match(user.password):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=INVALID_PASSWORD)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=INVALID_PASSWORD)
 
     hashed_password = utils.hash(user.password)
     user.password = hashed_password

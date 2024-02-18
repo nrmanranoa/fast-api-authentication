@@ -64,7 +64,7 @@ def test_invalid_email_create_user():
         data={"username": "testexample.com", "password": "failloginpassword"},
     )
     assert response.status_code == 422
-    assert "The email address is not valid. It must have exactly one @-sign." in response.text
+    assert "has exactly one @-sign." in response.text
 
 def test_invalid_email_login():
     response = client.post(
