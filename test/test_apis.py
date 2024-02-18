@@ -24,19 +24,19 @@ client = TestClient(app)
 def test_create_user():
     response = client.post(
         "/users",
-        json={"email": "test@example.com", "password": "testpassword"},
+        json={"email": "test@example.com", "password": "Testpassword1"},
     )
     assert response.status_code == 201
     assert response.json()["email"] == "test@example.com"
 
 def test_create_duplicate_user():
     # Create a user
-    client.post("/users", json={"email": "test@example.com", "password": "testpassword"})
+    client.post("/users", json={"email": "test@example.com", "password": "Testpassword1"})
     
     # Try to create the same user again
     response = client.post(
         "/users",
-        json={"email": "test@example.com", "password": "testpassword"},
+        json={"email": "test@example.com", "password": "Testpassword1"},
     )
     assert response.status_code == 409
     assert "Email already registered" in response.text
@@ -44,7 +44,7 @@ def test_create_duplicate_user():
 def test_login():
     response = client.post(
         "/login",
-        data={"username": "test@example.com", "password": "testpassword"},
+        data={"username": "test@example.com", "password": "Testpassword1"},
     )
     login_res = schemas.Token(**response.json())
     assert login_res.token_type == "bearer"
@@ -56,6 +56,31 @@ def test_fail_login():
         data={"username": "test@example.com", "password": "failloginpassword"},
     )
     assert response.status_code == 401
+    assert "Invalid credentials." in response.text
+
+def test_invalid_email_create_user():
+    response = client.post(
+        "/users",
+        data={"username": "testexample.com", "password": "failloginpassword"},
+    )
+    assert response.status_code == 422
+    assert "The email address is not valid. It must have exactly one @-sign." in response.text
+
+def test_invalid_email_login():
+    response = client.post(
+        "/login",
+        data={"username": "testexample.com", "password": "failloginpassword"},
+    )
+    assert response.status_code == 401
+    assert "Invalid credentials." in response.text
+
+def test_failed_password_criteria():
+    response = client.post(
+        "/users",
+        json={"email": "failedpassword@example.com", "password": "Testpassword"},
+    )
+    assert response.status_code == 422
+    assert "The password policy requires a minimum length of 8 characters" in response.text
 
 def setup():
     Base.metadata.create_all(bind=engine)
