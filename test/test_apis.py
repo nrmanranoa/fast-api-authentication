@@ -3,7 +3,7 @@ from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import sessionmaker
 from app.main import app
 from app.models import Base
-from app import database
+from app import database, schemas
 
 # Use an in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -38,7 +38,7 @@ def test_create_duplicate_user():
         "/users",
         json={"email": "test@example.com", "password": "testpassword"},
     )
-    assert response.status_code == 400
+    assert response.status_code == 409
     assert "Email already registered" in response.text
 
 def test_login():
@@ -46,6 +46,8 @@ def test_login():
         "/login",
         data={"username": "test@example.com", "password": "testpassword"},
     )
+    login_res = schemas.Token(**response.json())
+    assert login_res.token_type == "bearer"
     assert response.status_code == 200
 
 def test_fail_login():
@@ -53,7 +55,7 @@ def test_fail_login():
         "/login",
         data={"username": "test@example.com", "password": "failloginpassword"},
     )
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 def setup():
     Base.metadata.create_all(bind=engine)

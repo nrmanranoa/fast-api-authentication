@@ -1,16 +1,16 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
-class UserOut(BaseModel):
-    id: int
+class UserBase(BaseModel):
     email: EmailStr
 
-class UserCreate(BaseModel):
-    email: EmailStr
+class UserOut(UserBase):
+    id: int
+
+class UserCreate(UserBase):
     password: str
 
-class UserLogin(BaseModel):
-    email: EmailStr
+class UserLogin(UserBase):
     password: str
 
 class Token(BaseModel):
